@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>easydrop - Fast File & Text Transfer</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', system-ui, sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; color: #1f2937; }
+        .main-wrapper { display: flex; align-items: center; gap: 3rem; max-width: 900px; width: 90%; margin: 2rem auto; }
+        .container { background-color: white; padding: 2.5rem; border-radius: 1.2rem; box-shadow: 0 10px 30px rgba(0,0,0,0.08); max-width: 420px; width: 100%; text-align: center; box-sizing: border-box; }
+        .instructions { max-width: 300px; color: #475569; }
+        .instructions h2 { color: #1e293b; font-size: 1.5rem; margin-bottom: 1rem; }
+        .instructions ol { padding-left: 1.2rem; line-height: 1.6; }
+        .instructions li { margin-bottom: 1rem; font-size: 0.95rem; }
+        h1 { color: #2563eb; margin-bottom: 0.2rem; font-size: 2.5rem; font-weight: 800; letter-spacing: -1.5px; margin-top: 0; }
+        p { color: #6b7280; margin-bottom: 1.5rem; font-size: 0.95rem; }
+        
+        #qrcodeArea { display: flex; justify-content: center; margin: 1.5rem 0; padding: 1rem; background: #f8fafc; border-radius: 1rem; border: 2px dashed #e2e8f0; min-height: 180px; align-items: center;}
+        #qrcodeArea img { border-radius: 0.5rem; }
+        #sessionCodeDisplay { font-size: 2rem; font-weight: 800; color: #1e293b; letter-spacing: 4px; margin-bottom: 0.5rem; }
+        .code-label { font-size: 0.8rem; text-transform: uppercase; font-weight: 600; color: #94a3b8; letter-spacing: 1px; }
+
+        .btn { display: inline-block; width: 100%; padding: 1rem; border-radius: 0.75rem; border: none; cursor: pointer; font-weight: 600; font-size: 1rem; transition: all 0.2s; box-sizing: border-box; }
+        .btn-primary { background-color: #2563eb; color: white; }
+        .btn-primary:hover { background-color: #1d4ed8; }
+        .btn-secondary { background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
+        .btn-secondary:hover { background-color: #e2e8f0; }
+        
+        .manual-entry-group { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+        .input-code { flex: 1; padding: 1rem; border-radius: 0.75rem; border: 2px solid #cbd5e1; font-size: 1rem; text-align: center; outline: none; font-weight: 600; letter-spacing: 2px; }
+        .input-code:focus { border-color: #2563eb; }
+        #joinManualBtn { width: auto; padding: 0 1.5rem; }
+
+        .divider { display: flex; align-items: center; text-align: center; margin: 1.5rem 0; color: #94a3b8; font-size: 0.85rem; font-weight: 600; }
+        .divider::before, .divider::after { content: ''; flex: 1; border-bottom: 1px solid #e2e8f0; }
+        .divider::before { margin-right: .5em; }
+        .divider::after { margin-left: .5em; }
+
+        #reader { width: 100%; border-radius: 1rem; overflow: hidden; border: 2px solid #cbd5e1; background: #000; min-height: 250px;}
+        #fileInput { display: none; }
+        .hidden { display: none !important; }
+
+        /* Dosya Durum Çubuğu */
+        .status-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.75rem; padding: 1rem; margin-bottom: 1rem; font-size: 0.9rem; font-weight: 600; color: #475569; }
+
+        .chat-section { margin-top: 1.5rem; border-top: 1px solid #e2e8f0; padding-top: 1.5rem; }
+        .chat-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.75rem; height: 150px; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; text-align: left; margin-bottom: 0.75rem; }
+        .chat-msg { padding: 0.6rem 0.8rem; border-radius: 0.75rem; max-width: 85%; font-size: 0.9rem; line-height: 1.4; word-wrap: break-word; }
+        .msg-self { background-color: #2563eb; color: white; align-self: flex-end; border-bottom-right-radius: 0; }
+        .msg-other { background-color: #e2e8f0; color: #1e293b; align-self: flex-start; border-bottom-left-radius: 0; }
+        .chat-input-wrapper { display: flex; gap: 0.5rem; }
+        .chat-input { flex: 1; padding: 0.75rem; border-radius: 0.5rem; border: 1px solid #cbd5e1; outline: none; }
+        .send-msg-btn { background-color: #10b981; color: white; border: none; border-radius: 0.5rem; padding: 0 1rem; cursor: pointer; font-weight: bold; }
+
+        @media (max-width: 800px) {
+            .main-wrapper { flex-direction: column; gap: 1.5rem; margin: 0; width: 100%; }
+            .container { padding: 1.5rem; border-radius: 0; min-height: auto; box-shadow: none; border-bottom: 1px solid #e2e8f0; }
+            .instructions { padding: 1rem 2rem 2rem 2rem; max-width: 100%; }
+            h1 { font-size: 2rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-wrapper">
+        <div class="container" id="loginScreen">
+            <h1>easydrop</h1>
+            <p>Transfer files and text securely.</p>
+
+            <div id="defaultView">
+                <div id="qrcodeArea">Loading QR...</div>
+                <div class="code-label">Your Connection Code</div>
+                <div id="sessionCodeDisplay">----</div>
+                
+                <div class="divider">PAIR WITH ANOTHER DEVICE</div>
+                
+                <div class="manual-entry-group">
+                    <input type="text" id="manualCodeInput" class="input-code" placeholder="Enter Code" maxlength="4">
+                    <button class="btn btn-primary" id="joinManualBtn">Connect</button>
+                </div>
+                
+                <button class="btn btn-secondary" id="openScannerBtn">Scan QR with Camera</button>
+            </div>
+
+            <div id="scannerArea" class="hidden">
+                <h3 style="color:#334155; margin-top:0;">Point at PC Screen</h3>
+                <div id="reader"></div>
+                <button class="btn btn-secondary" style="margin-top:1rem;" onclick="location.reload()">Cancel</button>
+            </div>
+        </div>
+
+        <div class="container hidden" id="transferScreen">
+            <h1 style="color:#10b981; margin-bottom: 1rem;">Paired!</h1>
+            <p>Devices are connected securely.</p>
+
+            <!-- Dosya Durum Bildirimi -->
+            <div class="status-box" id="fileStatus">Ready to send or receive files</div>
+
+            <input type="file" id="fileInput">
+            <button class="btn btn-primary" id="sendDropBtn" onclick="document.getElementById('fileInput').click()">Select & Send File</button>
+
+            <div class="chat-section">
+                <div class="chat-box" id="chatBox">
+                    <div style="text-align:center; color:#94a3b8; font-size:0.8rem; margin-top:0.5rem;">End-to-end encrypted chat started</div>
+                </div>
+                <div class="chat-input-wrapper">
+                    <input type="text" id="chatInput" class="chat-input" placeholder="Type a message...">
+                    <button id="sendMsgBtn" class="send-msg-btn">Send</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="instructions" id="instructionsPanel">
+            <h2>How it works?</h2>
+            <ol>
+                <li><strong>Open easydrop</strong> on the device you want to connect with.</li>
+                <li><strong>Scan the QR code</strong> with your phone's camera, or manually <strong>enter the 4-digit code</strong>.</li>
+                <li><strong>Send files or copy-paste text</strong> instantly. No cables, no limits!</li>
+            </ol>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        const socket = io(); 
+        let mySessionCode = '';
+
+        const elements = {
+            loginScreen: document.getElementById('loginScreen'),
+            transferScreen: document.getElementById('transferScreen'),
+            defaultView: document.getElementById('defaultView'),
+            scannerArea: document.getElementById('scannerArea'),
+            instructionsPanel: document.getElementById('instructionsPanel'),
+            qrArea: document.getElementById("qrcodeArea"),
+            codeDisplay: document.getElementById('sessionCodeDisplay'),
+            manualInput: document.getElementById('manualCodeInput'),
+            chatBox: document.getElementById('chatBox'),
+            chatInput: document.getElementById('chatInput'),
+            fileInput: document.getElementById('fileInput'),
+            fileStatus: document.getElementById('fileStatus'),
+            sendDropBtn: document.getElementById('sendDropBtn')
+        };
+
+        // Oturum Kurulumu ve QR
+        window.addEventListener('DOMContentLoaded', () => {
+            mySessionCode = Math.floor(1000 + Math.random() * 9000).toString();
+            elements.codeDisplay.innerText = mySessionCode;
+            socket.emit('create-session', mySessionCode);
+            
+            setTimeout(() => {
+                try {
+                    elements.qrArea.innerHTML = "";
+                    new QRCode(elements.qrArea, {
+                        text: mySessionCode,
+                        width: 180, height: 180,
+                        colorDark : "#0f172a", colorLight : "#f8fafc",
+                        correctLevel : QRCode.CorrectLevel.H
+                    });
+                } catch(e) { console.error(e); }
+            }, 100);
+        });
+
+        // Bağlan Butonu
+        document.getElementById('joinManualBtn').addEventListener('click', () => {
+            const code = elements.manualInput.value.trim();
+            if(code.length === 4) {
+                mySessionCode = code;
+                socket.emit('join-session', mySessionCode);
+                elements.defaultView.innerHTML = '<h3 style="color:#2563eb">Pairing...</h3>';
+            } else { alert("Please enter a valid 4-digit code."); }
+        });
+
+        // Kamera Tarayıcı
+        let html5QrCodeScanner = null;
+        document.getElementById('openScannerBtn').addEventListener('click', () => {
+            elements.defaultView.classList.add('hidden');
+            elements.scannerArea.classList.remove('hidden');
+            try {
+                if(!html5QrCodeScanner) { html5QrCodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 }); }
+                html5QrCodeScanner.render((decodedText) => {
+                    html5QrCodeScanner.clear(); 
+                    mySessionCode = decodedText;
+                    socket.emit('join-session', mySessionCode); 
+                    elements.scannerArea.innerHTML = '<h3 style="color:#2563eb">Pairing...</h3>';
+                });
+            } catch (err) { alert("Camera error."); }
+        });
+
+        function showTransferScreen() {
+            elements.loginScreen.classList.add('hidden');
+            elements.instructionsPanel.classList.add('hidden'); 
+            elements.transferScreen.classList.remove('hidden');
+        }
+
+        socket.on('session-joined', showTransferScreen);
+        socket.on('peer-joined', showTransferScreen);
+        socket.on('session-error', (msg) => { alert(msg); location.reload(); });
+
+        // --- DOSYA AKTARIM MOTORU (WEBSOCKET STREAMING) ---
+        
+        // Dosya Seçildiğinde (Gönderen Taraf)
+        elements.fileInput.addEventListener('change', () => {
+            const file = elements.fileInput.files[0];
+            if (!file) return;
+
+            elements.fileStatus.innerText = `Sending: ${file.name}...`;
+            elements.fileStatus.style.color = "#2563eb";
+            elements.sendDropBtn.disabled = true;
+
+            // Dosyayı okuyoruz
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const buffer = e.target.result;
+                
+                // Sunucu üzerinden karşıdaki odaya ham veriyi fırlatıyoruz
+                socket.emit('send-message', {
+                    sessionCode: mySessionCode,
+                    text: "__FILE_TRANSFER__", // Dosya olduğunu belirten gizli kelime
+                    fileName: file.name,
+                    fileType: file.type,
+                    fileData: buffer
+                });
+
+                elements.fileStatus.innerText = "File sent successfully!";
+                elements.fileStatus.style.color = "#10b981";
+                elements.sendDropBtn.disabled = false;
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        // Dosya Geldiğinde (Alıcı Taraf)
+        socket.on('receive-message', (data) => {
+            // Eğer gelen veri bir chat mesajı değil de dosyaysa
+            if (data && data.text === "__FILE_TRANSFER__") {
+                elements.fileStatus.innerText = `Receiving: ${data.fileName}...`;
+                elements.fileStatus.style.color = "#2563eb";
+
+                // Gelen ham veriyi (arraybuffer) tarayıcının indirebileceği bir dosyaya (Blob) çeviriyoruz
+                const blob = new Blob([data.fileData], { type: data.fileType });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = data.fileName;
+                
+                // Kullanıcıya indirme butonunu gösteriyoruz
+                elements.fileStatus.innerHTML = `
+                    <span style="color:#10b981; display:block; margin-bottom:5px;">New File Received!</span>
+                    <strong style="color:#1e293b">${data.fileName}</strong>
+                `;
+                
+                // İndirme işlemini tetikleyen şık bir buton yerleştiriyoruz
+                const downloadBtn = document.createElement('button');
+                downloadBtn.className = "btn btn-primary";
+                downloadBtn.style.backgroundColor = "#10b981";
+                downloadBtn.style.marginTop = "10px";
+                downloadBtn.innerText = "Download File";
+                downloadBtn.onclick = () => link.click();
+                
+                elements.fileStatus.appendChild(downloadBtn);
+            }
+        });
+
+        // --- CHAT SİSTEMİ ---
+        function sendMessage() {
+            const text = elements.chatInput.value.trim();
+            if(text.length > 0) {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'chat-msg msg-self';
+                msgDiv.innerText = text;
+                elements.chatBox.appendChild(msgDiv);
+                elements.chatBox.scrollTop = elements.chatBox.scrollHeight;
+                
+                socket.emit('send-message', { sessionCode: mySessionCode, text: text });
+                elements.chatInput.value = '';
+            }
+        }
+
+        document.getElementById('sendMsgBtn').addEventListener('click', sendMessage);
+        elements.chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+
+        socket.on('receive-message', (data) => {
+            // Gelen veri normal chat mesajıysa ekrana yaz (Dosya transfer komutu değilse)
+            if (typeof data === 'string') {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'chat-msg msg-other';
+                msgDiv.innerText = data;
+                elements.chatBox.appendChild(msgDiv);
+                elements.chatBox.scrollTop = elements.chatBox.scrollHeight;
+            } else if (data && data.text !== "__FILE_TRANSFER__") {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'chat-msg msg-other';
+                msgDiv.innerText = data.text;
+                elements.chatBox.appendChild(msgDiv);
+                elements.chatBox.scrollTop = elements.chatBox.scrollHeight;
+            }
+        });
+    </script>
+</body>
+</html>
