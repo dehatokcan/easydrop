@@ -46,16 +46,32 @@
         #fileInput { display: none; }
         .hidden { display: none !important; }
 
+        /* Aktif Dosya Durum Kutusu */
         .status-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.75rem; padding: 1rem; margin-bottom: 1rem; font-size: 0.9rem; font-weight: 600; color: #475569; text-align: left;}
         .progress-container { width: 100%; background-color: #e2e8f0; border-radius: 0.5rem; overflow: hidden; margin-top: 0.5rem; height: 10px; display: none; }
         .progress-bar { width: 0%; height: 100%; background-color: #2563eb; transition: width 0.1s linear; }
         .percent-text { float: right; font-size: 0.8rem; color: #2563eb; font-weight: 800; }
 
+        /* YENİ: Alt Alta Sıralanan Dosya Geçmişi Paneli */
+        .file-history-container { margin-top: 1.5rem; border-top: 1px solid #e2e8f0; padding-top: 1rem; text-align: left; }
+        .history-title { font-size: 0.8rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.5px; }
+        .file-list { display: flex; flex-direction: column; gap: 0.5rem; max-height: 160px; overflow-y: auto; padding-right: 2px; }
+        .file-item { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0.8rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.75rem; font-size: 0.85rem; animation: slideIn 0.2s ease; }
+        .file-info { display: flex; flex-direction: column; gap: 0.1rem; max-width: 65%; }
+        .file-name { font-weight: 600; color: #1e293b; word-break: break-all; text-overflow: ellipsis; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
+        .file-tag { font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 0.25rem; width: fit-content; }
+        .tag-sent { background: #dbeafe; color: #1e40af; }
+        .tag-received { background: #dcfce7; color: #14532d; }
+        .file-download-btn { background-color: #10b981; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 0.5rem; cursor: pointer; font-size: 0.8rem; font-weight: 700; text-decoration: none; text-align: center; }
+        .file-download-btn:hover { background-color: #059669; }
+
+        @keyframes slideIn { from { transform: translateY(5px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
         #alertBanner, #alertBannerTransfer { position: absolute; top: 0; left: 0; width: 100%; background-color: #ef4444; color: white; padding: 0.75rem; font-size: 0.9rem; font-weight: 600; transform: translateY(-100%); transition: transform 0.3s ease; box-sizing: border-box; z-index: 10; }
         .alert-visible { transform: translateY(0) !important; }
 
         .chat-section { margin-top: 1.5rem; border-top: 1px solid #e2e8f0; padding-top: 1.5rem; }
-        .chat-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.75rem; height: 150px; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; text-align: left; margin-bottom: 0.75rem; }
+        .chat-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.75rem; height: 120px; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; text-align: left; margin-bottom: 0.75rem; }
         .chat-msg { padding: 0.6rem 0.8rem; border-radius: 0.75rem; max-width: 85%; font-size: 0.9rem; line-height: 1.4; word-wrap: break-word; }
         .msg-self { background-color: #2563eb; color: white; align-self: flex-end; border-bottom-right-radius: 0; }
         .msg-other { background-color: #e2e8f0; color: #1e293b; align-self: flex-start; border-bottom-left-radius: 0; }
@@ -109,12 +125,16 @@
                 <div class="progress-container" id="progressContainer">
                     <div class="progress-bar" id="progressBar"></div>
                 </div>
-                <div id="downloadArea"></div>
             </div>
 
             <input type="file" id="fileInput">
             <button class="btn btn-primary" id="sendDropBtn" onclick="document.getElementById('fileInput').click()">Select & Send File</button>
             <button class="btn btn-danger" id="disconnectBtn">Disconnect</button>
+
+            <div class="file-history-container hidden" id="historyContainer">
+                <div class="history-title">Transferred Files</div>
+                <div class="file-list" id="fileList"></div>
+            </div>
 
             <div class="chat-section">
                 <div class="chat-box" id="chatBox">
@@ -157,16 +177,16 @@
             percentText: document.getElementById('percentText'),
             progressContainer: document.getElementById('progressContainer'),
             progressBar: document.getElementById('progressBar'),
-            downloadArea: document.getElementById('downloadArea'),
             sendDropBtn: document.getElementById('sendDropBtn'),
             alertBannerTransfer: document.getElementById('alertBannerTransfer'),
-            disconnectBtn: document.getElementById('disconnectBtn') // YENİ BUTON
+            disconnectBtn: document.getElementById('disconnectBtn'),
+            historyContainer: document.getElementById('historyContainer'), // YENİ
+            fileList: document.getElementById('fileList') // YENİ
         };
 
-        // Hafızayı (sessionStorage) Kontrol Et
+        // Hafıza Kontrolü
         window.addEventListener('DOMContentLoaded', () => {
             const savedCode = sessionStorage.getItem('easydrop_code');
-            
             if (savedCode) {
                 mySessionCode = savedCode;
                 elements.codeDisplay.innerText = mySessionCode;
@@ -177,7 +197,6 @@
                 elements.codeDisplay.innerText = mySessionCode;
                 socket.emit('create-session', mySessionCode);
             }
-            
             setTimeout(() => {
                 try {
                     elements.qrArea.innerHTML = "";
@@ -212,13 +231,11 @@
             } catch (err) { alert("Camera error."); }
         });
 
-        // --- YENİ: BAĞLANTIYI KOPARMA BUTONU İŞLEVİ ---
         elements.disconnectBtn.addEventListener('click', () => {
-            const confirmLeave = confirm("Are you sure you want to disconnect?");
-            if (confirmLeave) {
-                sessionStorage.removeItem('easydrop_code'); // Hafızayı sil ki F5 atınca geri girmesin
-                socket.disconnect(); // Sunucuyla bağlantıyı kopar (Karşı tarafa anında uyarı gider)
-                location.reload(); // Ekranı ana sayfaya döndür
+            if (confirm("Are you sure you want to disconnect?")) {
+                sessionStorage.removeItem('easydrop_code'); 
+                socket.disconnect(); 
+                location.reload(); 
             }
         });
 
@@ -226,7 +243,6 @@
             elements.loginScreen.classList.add('hidden');
             elements.instructionsPanel.classList.add('hidden'); 
             elements.transferScreen.classList.remove('hidden');
-            
             elements.alertBannerTransfer.classList.remove('alert-visible');
             elements.sendDropBtn.disabled = false;
             elements.sendDropBtn.innerText = "Select & Send File";
@@ -235,15 +251,9 @@
 
         socket.on('session-joined', showTransferScreen);
         socket.on('peer-joined', showTransferScreen);
-        
-        socket.on('session-error', (msg) => { 
-            sessionStorage.removeItem('easydrop_code'); 
-            alert(msg); 
-            location.reload(); 
-        });
+        socket.on('session-error', (msg) => { sessionStorage.removeItem('easydrop_code'); alert(msg); location.reload(); });
 
         socket.on('disconnect', () => {
-            // Eğer butona basıp biz çıkmadıysak (hata kaynaklıysa) uyarı ver
             if (sessionStorage.getItem('easydrop_code')) {
                 elements.alertBannerTransfer.innerText = "⚠️ Server connection lost! Reconnecting...";
                 elements.alertBannerTransfer.classList.add('alert-visible');
@@ -258,6 +268,40 @@
             elements.sendDropBtn.style.backgroundColor = "#94a3b8";
         });
 
+        // --- YENİ: DOSYA GEÇMİŞİ LİSTESİNE ELEMAN EKLEME FONKSİYONU ---
+        function appendToFileHistory(fileName, blob, isSent) {
+            elements.historyContainer.classList.remove('hidden');
+
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'file-item';
+
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'file-info';
+
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'file-name';
+            nameDiv.innerText = fileName;
+
+            const tagSpan = document.createElement('span');
+            tagSpan.className = isSent ? 'file-tag tag-sent' : 'file-tag tag-received';
+            tagSpan.innerText = isSent ? 'SENT' : 'RECEIVED';
+
+            infoDiv.appendChild(nameDiv);
+            infoDiv.appendChild(tagSpan);
+
+            const downloadLink = document.createElement('a');
+            downloadLink.className = 'file-download-btn';
+            downloadLink.innerText = 'Download';
+            downloadLink.download = fileName;
+            downloadLink.href = URL.createObjectURL(blob);
+
+            itemDiv.appendChild(infoDiv);
+            itemDiv.appendChild(downloadLink);
+            
+            elements.fileList.appendChild(itemDiv);
+            elements.fileList.scrollTop = elements.fileList.scrollHeight; // Listeyi otomatik aşağı kaydır
+        }
+
         // --- DOSYA AKTARIM MOTORU ---
         const CHUNK_SIZE = 256 * 1024; 
 
@@ -265,7 +309,6 @@
             const file = elements.fileInput.files[0];
             if (!file) return;
 
-            elements.downloadArea.innerHTML = '';
             elements.sendDropBtn.disabled = true;
             elements.progressContainer.style.display = 'block';
             
@@ -294,10 +337,16 @@
                         socket.emit('send-message', { sessionCode: mySessionCode, type: 'file-end' });
                         elements.statusText.innerText = "Sent successfully!";
                         elements.statusText.style.color = "#10b981";
+
+                        // YENİ: Gönderen tarafta dosyayı listeye ekle
+                        appendToFileHistory(file.name, file, true);
+
                         setTimeout(() => { 
                             elements.progressContainer.style.display = 'none'; 
                             elements.percentText.innerText = '';
                             elements.sendDropBtn.disabled = false;
+                            elements.statusText.innerText = "Ready to send or receive files";
+                            elements.statusText.style.color = "#475569";
                         }, 2000);
                     }
                 };
@@ -321,7 +370,6 @@
                 receivingName = data.fileName;
                 receivingType = data.fileType;
                 
-                elements.downloadArea.innerHTML = '';
                 elements.progressContainer.style.display = 'block';
                 elements.statusText.innerText = `Receiving: ${receivingName}`;
                 elements.statusText.style.color = "#2563eb";
@@ -341,19 +389,17 @@
                 elements.percentText.innerText = '100%';
 
                 const blob = new Blob(receiveBuffer, { type: receivingType });
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(blob);
-                link.download = receivingName;
                 
-                const downloadBtn = document.createElement('button');
-                downloadBtn.className = "btn btn-primary";
-                downloadBtn.style.backgroundColor = "#10b981";
-                downloadBtn.style.marginTop = "15px";
-                downloadBtn.innerText = "⬇️ Download File";
-                downloadBtn.onclick = () => link.click();
-                
-                elements.downloadArea.appendChild(downloadBtn);
+                // YENİ: Alıcı tarafta dosyayı alt alta listeye ekle
+                appendToFileHistory(receivingName, blob, false);
+
                 receiveBuffer = [];
+                setTimeout(() => {
+                    elements.progressContainer.style.display = 'none';
+                    elements.percentText.innerText = '';
+                    elements.statusText.innerText = "Ready to send or receive files";
+                    elements.statusText.style.color = "#475569";
+                }, 2000);
             } 
             else if (data.type !== 'file-start' && data.type !== 'file-chunk' && data.type !== 'file-end') {
                 const msgText = typeof data === 'string' ? data : data.text;
