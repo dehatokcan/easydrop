@@ -41,11 +41,17 @@ io.on('connection', (socket) => {
         }
     });
 
+    // YENİ: Sayfa yenilendiğinde odaya geri sızma komutu
+    socket.on('reconnect-session', (sessionCode) => {
+        socket.join(sessionCode);
+        socket.emit('session-joined'); 
+        socket.to(sessionCode).emit('peer-joined'); 
+    });
+
     socket.on('send-message', (data) => {
         socket.to(data.sessionCode).emit('receive-message', data);
     });
 
-    // YENİ: Biri odadan çıkarsa veya interneti koparsa diğerine haber ver
     socket.on('disconnecting', () => {
         for (const room of socket.rooms) {
             if (room !== socket.id) {

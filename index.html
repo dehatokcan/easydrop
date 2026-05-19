@@ -30,6 +30,8 @@
         .btn-primary:hover { background-color: #1d4ed8; }
         .btn-secondary { background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; }
         .btn-secondary:hover { background-color: #e2e8f0; }
+        .btn-danger { background-color: #ef4444; color: white; margin-top: 0.5rem; }
+        .btn-danger:hover { background-color: #dc2626; }
         
         .manual-entry-group { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
         .input-code { flex: 1; padding: 1rem; border-radius: 0.75rem; border: 2px solid #cbd5e1; font-size: 1rem; text-align: center; outline: none; font-weight: 600; letter-spacing: 2px; }
@@ -44,14 +46,12 @@
         #fileInput { display: none; }
         .hidden { display: none !important; }
 
-        /* Dosya ve Yüzde Çubuğu Tasarımı */
         .status-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.75rem; padding: 1rem; margin-bottom: 1rem; font-size: 0.9rem; font-weight: 600; color: #475569; text-align: left;}
         .progress-container { width: 100%; background-color: #e2e8f0; border-radius: 0.5rem; overflow: hidden; margin-top: 0.5rem; height: 10px; display: none; }
         .progress-bar { width: 0%; height: 100%; background-color: #2563eb; transition: width 0.1s linear; }
         .percent-text { float: right; font-size: 0.8rem; color: #2563eb; font-weight: 800; }
 
-        /* Bağlantı Koptu Uyarı Banner'ı */
-        #alertBanner { position: absolute; top: 0; left: 0; width: 100%; background-color: #ef4444; color: white; padding: 0.75rem; font-size: 0.9rem; font-weight: 600; transform: translateY(-100%); transition: transform 0.3s ease; box-sizing: border-box; z-index: 10; }
+        #alertBanner, #alertBannerTransfer { position: absolute; top: 0; left: 0; width: 100%; background-color: #ef4444; color: white; padding: 0.75rem; font-size: 0.9rem; font-weight: 600; transform: translateY(-100%); transition: transform 0.3s ease; box-sizing: border-box; z-index: 10; }
         .alert-visible { transform: translateY(0) !important; }
 
         .chat-section { margin-top: 1.5rem; border-top: 1px solid #e2e8f0; padding-top: 1.5rem; }
@@ -74,7 +74,6 @@
 <body>
     <div class="main-wrapper">
         <div class="container" id="loginScreen">
-            <div id="alertBanner">⚠️ Connection Lost!</div>
             <h1>easydrop</h1>
             <p>Transfer files and text securely.</p>
 
@@ -115,6 +114,7 @@
 
             <input type="file" id="fileInput">
             <button class="btn btn-primary" id="sendDropBtn" onclick="document.getElementById('fileInput').click()">Select & Send File</button>
+            <button class="btn btn-danger" id="disconnectBtn">Disconnect</button>
 
             <div class="chat-section">
                 <div class="chat-box" id="chatBox">
@@ -159,14 +159,24 @@
             progressBar: document.getElementById('progressBar'),
             downloadArea: document.getElementById('downloadArea'),
             sendDropBtn: document.getElementById('sendDropBtn'),
-            alertBannerTransfer: document.getElementById('alertBannerTransfer')
+            alertBannerTransfer: document.getElementById('alertBannerTransfer'),
+            disconnectBtn: document.getElementById('disconnectBtn') // YENİ BUTON
         };
 
-        // Oturum Kurulumu ve QR
+        // Hafızayı (sessionStorage) Kontrol Et
         window.addEventListener('DOMContentLoaded', () => {
-            mySessionCode = Math.floor(1000 + Math.random() * 9000).toString();
-            elements.codeDisplay.innerText = mySessionCode;
-            socket.emit('create-session', mySessionCode);
+            const savedCode = sessionStorage.getItem('easydrop_code');
+            
+            if (savedCode) {
+                mySessionCode = savedCode;
+                elements.codeDisplay.innerText = mySessionCode;
+                socket.emit('reconnect-session', mySessionCode);
+            } else {
+                mySessionCode = Math.floor(1000 + Math.random() * 9000).toString();
+                sessionStorage.setItem('easydrop_code', mySessionCode);
+                elements.codeDisplay.innerText = mySessionCode;
+                socket.emit('create-session', mySessionCode);
+            }
             
             setTimeout(() => {
                 try {
@@ -180,6 +190,7 @@
             const code = elements.manualInput.value.trim();
             if(code.length === 4) {
                 mySessionCode = code;
+                sessionStorage.setItem('easydrop_code', mySessionCode); 
                 socket.emit('join-session', mySessionCode);
                 elements.defaultView.innerHTML = '<h3 style="color:#2563eb">Pairing...</h3>';
             } else { alert("Please enter a valid 4-digit code."); }
@@ -194,26 +205,49 @@
                 html5QrCodeScanner.render((decodedText) => {
                     html5QrCodeScanner.clear(); 
                     mySessionCode = decodedText;
+                    sessionStorage.setItem('easydrop_code', mySessionCode); 
                     socket.emit('join-session', mySessionCode); 
                     elements.scannerArea.innerHTML = '<h3 style="color:#2563eb">Pairing...</h3>';
                 });
             } catch (err) { alert("Camera error."); }
         });
 
+        // --- YENİ: BAĞLANTIYI KOPARMA BUTONU İŞLEVİ ---
+        elements.disconnectBtn.addEventListener('click', () => {
+            const confirmLeave = confirm("Are you sure you want to disconnect?");
+            if (confirmLeave) {
+                sessionStorage.removeItem('easydrop_code'); // Hafızayı sil ki F5 atınca geri girmesin
+                socket.disconnect(); // Sunucuyla bağlantıyı kopar (Karşı tarafa anında uyarı gider)
+                location.reload(); // Ekranı ana sayfaya döndür
+            }
+        });
+
         function showTransferScreen() {
             elements.loginScreen.classList.add('hidden');
             elements.instructionsPanel.classList.add('hidden'); 
             elements.transferScreen.classList.remove('hidden');
+            
+            elements.alertBannerTransfer.classList.remove('alert-visible');
+            elements.sendDropBtn.disabled = false;
+            elements.sendDropBtn.innerText = "Select & Send File";
+            elements.sendDropBtn.style.backgroundColor = "#2563eb";
         }
 
         socket.on('session-joined', showTransferScreen);
         socket.on('peer-joined', showTransferScreen);
-        socket.on('session-error', (msg) => { alert(msg); location.reload(); });
+        
+        socket.on('session-error', (msg) => { 
+            sessionStorage.removeItem('easydrop_code'); 
+            alert(msg); 
+            location.reload(); 
+        });
 
-        // --- YENİ: BAĞLANTI KOPMA DEDEKTÖRÜ ---
         socket.on('disconnect', () => {
-            elements.alertBannerTransfer.innerText = "⚠️ Server connection lost!";
-            elements.alertBannerTransfer.classList.add('alert-visible');
+            // Eğer butona basıp biz çıkmadıysak (hata kaynaklıysa) uyarı ver
+            if (sessionStorage.getItem('easydrop_code')) {
+                elements.alertBannerTransfer.innerText = "⚠️ Server connection lost! Reconnecting...";
+                elements.alertBannerTransfer.classList.add('alert-visible');
+            }
         });
 
         socket.on('peer-disconnected', () => {
@@ -224,11 +258,9 @@
             elements.sendDropBtn.style.backgroundColor = "#94a3b8";
         });
 
+        // --- DOSYA AKTARIM MOTORU ---
+        const CHUNK_SIZE = 256 * 1024; 
 
-        // --- YENİ: YÜZDE BARLI DOSYA AKTARIM MOTORU ---
-        const CHUNK_SIZE = 256 * 1024; // 256 KB parçalar halinde gönderir
-
-        // Dosya Seçildiğinde (Gönderen)
         elements.fileInput.addEventListener('change', () => {
             const file = elements.fileInput.files[0];
             if (!file) return;
@@ -240,7 +272,6 @@
             let offset = 0;
             const totalSize = file.size;
 
-            // Alıcıya dosyanın başladığını haber veriyoruz
             socket.emit('send-message', { sessionCode: mySessionCode, type: 'file-start', fileName: file.name, fileType: file.type, fileSize: totalSize });
 
             function readNextChunk() {
@@ -248,22 +279,18 @@
                 const reader = new FileReader();
                 
                 reader.onload = (e) => {
-                    // Parçayı sunucuya fırlat
                     socket.emit('send-message', { sessionCode: mySessionCode, type: 'file-chunk', data: e.target.result });
                     
                     offset += CHUNK_SIZE;
                     const percent = Math.min(100, Math.round((offset / totalSize) * 100));
                     
-                    // Ekranı güncelle
                     elements.statusText.innerText = `Uploading: ${file.name}`;
                     elements.progressBar.style.width = percent + '%';
                     elements.percentText.innerText = percent + '%';
 
                     if (offset < totalSize) {
-                        // Tarayıcının nefes alması için küçük bir bekleme (Çökmeyi engeller)
                         setTimeout(readNextChunk, 10);
                     } else {
-                        // Dosya Bitti
                         socket.emit('send-message', { sessionCode: mySessionCode, type: 'file-end' });
                         elements.statusText.innerText = "Sent successfully!";
                         elements.statusText.style.color = "#10b981";
@@ -276,10 +303,10 @@
                 };
                 reader.readAsArrayBuffer(slice);
             }
-            readNextChunk(); // Motoru ateşle
+            readNextChunk();
         });
 
-        // Dosya Geldiğinde (Alıcı)
+        // Alıcı Tarafı
         let receiveBuffer = [];
         let expectedSize = 0;
         let receivedSize = 0;
@@ -313,7 +340,6 @@
                 elements.progressBar.style.width = '100%';
                 elements.percentText.innerText = '100%';
 
-                // Parçaları birleştirip dosyayı oluştur (İndirme Butonu Çıkar)
                 const blob = new Blob(receiveBuffer, { type: receivingType });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
@@ -327,9 +353,8 @@
                 downloadBtn.onclick = () => link.click();
                 
                 elements.downloadArea.appendChild(downloadBtn);
-                receiveBuffer = []; // Hafızayı temizle
+                receiveBuffer = [];
             } 
-            // Normal Chat Mesajıysa
             else if (data.type !== 'file-start' && data.type !== 'file-chunk' && data.type !== 'file-end') {
                 const msgText = typeof data === 'string' ? data : data.text;
                 if(msgText) {
@@ -342,7 +367,7 @@
             }
         });
 
-        // Chat Sistemi
+        // Chat
         function sendMessage() {
             const text = elements.chatInput.value.trim();
             if(text.length > 0) {
