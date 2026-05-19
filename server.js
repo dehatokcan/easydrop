@@ -6,7 +6,6 @@ const cors = require('cors');
 const app = express();
 app.use(cors());
 
-// Arayüzü sunuyoruz
 app.use(express.static(__dirname));
 app.get('/', (req, res) => {
     res.sendFile(__dirname + '/index.html');
@@ -14,13 +13,9 @@ app.get('/', (req, res) => {
 
 const server = http.createServer(app);
 
-// İŞTE SİHİRLİ DOKUNUŞ: maxHttpBufferSize ayarı ile sınırı 1 Gigabyte'a çıkarıyoruz
 const io = new Server(server, {
-    maxHttpBufferSize: 1e9, // 1 GB dosya desteği
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    }
+    maxHttpBufferSize: 1e9, 
+    cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
 io.on('connection', (socket) => {
@@ -28,7 +23,6 @@ io.on('connection', (socket) => {
 
     socket.on('create-session', (sessionCode) => {
         socket.join(sessionCode);
-        console.log(`[Oturum Açıldı] Kod: ${sessionCode}`);
         socket.emit('session-created'); 
     });
 
@@ -40,7 +34,6 @@ io.on('connection', (socket) => {
             socket.emit('session-error', 'Geçersiz veya süresi dolmuş kod!');
         } else if (numClients === 1) {
             socket.join(sessionCode);
-            console.log(`[Eşleşme Sağlandı] Kod: ${sessionCode}`);
             socket.emit('session-joined'); 
             socket.to(sessionCode).emit('peer-joined'); 
         } else {
@@ -48,9 +41,17 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Chat ve büyük dosya mesajlarını karşıya tam performans iletme
     socket.on('send-message', (data) => {
         socket.to(data.sessionCode).emit('receive-message', data);
+    });
+
+    // YENİ: Biri odadan çıkarsa veya interneti koparsa diğerine haber ver
+    socket.on('disconnecting', () => {
+        for (const room of socket.rooms) {
+            if (room !== socket.id) {
+                socket.to(room).emit('peer-disconnected');
+            }
+        }
     });
 
     socket.on('disconnect', () => {
